@@ -1,0 +1,56 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: pipeline_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - pipeline-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hadoop:
+    build:
+      context: ./hadoop
+    container_name: pipeline_hadoop
+    volumes:
+      - ./mapreduce:/workspace/mapreduce
+      - ./scripts:/workspace/scripts
+    networks:
+      - pipeline-net
+    stdin_open: true
+    tty: true
+
+  api:
+    build:
+      context: ./api
+    container_name: pipeline_api
+    restart: always
+    ports:
+      - "${API_PORT}:5000"
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pipeline-net
+
+volumes:
+  db_data:
+
+networks:
+  pipeline-net:
+    driver: bridge
